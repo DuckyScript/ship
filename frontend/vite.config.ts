@@ -18,10 +18,10 @@ export default defineConfig({
   resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
-        // contracts and db live at repo root; resolve to parent directory
-        "@contracts": path.resolve(__dirname, "../contracts"),
-        "@db": path.resolve(__dirname, "../db"),
-        "db": path.resolve(__dirname, "../db"),
+        // contracts and db live in backend; resolve to parent directory
+        "@contracts": path.resolve(__dirname, "../backend/contracts"),
+        "@db": path.resolve(__dirname, "../backend/db"),
+        "db": path.resolve(__dirname, "../backend/db"),
       },
   },
   // .env and other repo-level env files live in the project root

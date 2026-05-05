@@ -21,10 +21,10 @@
       ],
       // point to repo-level folders
       "@contracts/*": [
-        "../contracts/*"
+        "../backend/contracts/*"
       ],
       "@db/*": [
-        "../db/*"
+        "../backend/db/*"
       ]
     },
     "moduleResolution": "bundler",
