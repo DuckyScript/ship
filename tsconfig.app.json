@@ -1,0 +1,5 @@
+{
+  "//": "Wrapper tsconfig so tools expecting a repo-level tsconfig.app.json still work",
+  "extends": "./frontend/tsconfig.app.json"
+}
+
