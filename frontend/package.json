@@ -8,5 +8,11 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "check": "tsc -b"
+  },
+  "dependencies": {
+    "vite": "^8.0.12"
+  },
+  "devDependencies": {
+    "eslint": "^10.3.0"
   }
 }
