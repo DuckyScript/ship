@@ -3,7 +3,6 @@ import path from "path"
 const __dirname = import.meta.dirname
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
-import { inspectAttr } from 'kimi-plugin-inspect-react'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -11,7 +10,7 @@ export default defineConfig({
     // api/boot.ts lives at the repository root; when this config is inside
     // `frontend/` we need to point the entry at the relative path up one level.
     devServer({ entry: "../backend/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
-    inspectAttr(), react()],
+    react()],
   server: {
     port: 3000,
   },
