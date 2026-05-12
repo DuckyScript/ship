@@ -16,4 +16,6 @@ export const env = {
   // Kimi authentication integration removed; related env vars dropped.
   ownerUnionId: process.env.OWNER_UNION_ID ?? "",
   marinesiaApiKey: process.env.MARINESIA_API_KEY ?? "",
+  /** HS256 (or compatible) secret for `kimi_sid` JWT sessions; omit for guest-only. */
+  sessionJwtSecret: process.env.SESSION_JWT_SECRET ?? "",
 };

@@ -1,11 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-// Kimi OAuth was removed. Keep a placeholder so the login page still renders.
-function getOAuthUrl() {
-  return "#";
-}
-
 export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center">

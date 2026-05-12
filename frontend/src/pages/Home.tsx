@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { trpc } from "@/providers/trpc";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { trpc } from "@/providers/trpc-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +52,16 @@ const SEVERITY_COLORS: Record<number, string> = {
   4: "bg-neutral-600 text-white",
   3: "bg-neutral-700 text-white",
 };
+
+/** Deterministic 0–1 from a string (stable across renders). */
+function stable01(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) {
+    h = Math.imul(31, h) + seed.charCodeAt(i);
+  }
+  const x = Math.sin(h) * 10000;
+  return x - Math.floor(x);
+}
 
 const CATEGORY_ICONS: Record<string, typeof AlertTriangle> = {
   conflict: AlertTriangle,
@@ -122,10 +132,10 @@ function WorldMap({ vessels }: { vessels: Array<{ lat: number; lng: number; type
           return <line key={`h${lat}`} x1="0" y1={y} x2="1000" y2={y} stroke="#1a1a1a" strokeWidth="0.5" />;
         })}
         <path d={worldPath} fill="#141414" stroke="#2a2a2a" strokeWidth="1" />
-        {vessels.map((v, i) => {
+        {vessels.map((v) => {
           const pos = toSvg(v.lat, v.lng);
           return (
-            <g key={i} transform={`translate(${pos.x}, ${pos.y})`}>
+            <g key={`${v.name}-${v.lat}-${v.lng}`} transform={`translate(${pos.x}, ${pos.y})`}>
               {vesselIcon(v.type)}
               <line
                 x1="0"
@@ -153,12 +163,21 @@ function WorldMap({ vessels }: { vessels: Array<{ lat: number; lng: number; type
   );
 }
 
-function PredictionChart({ data, color }: { data: Array<{ date: string; value: number }>; color: string }) {
+function PredictionChart({
+  data,
+  color,
+  chartId,
+}: {
+  data: Array<{ date: string; value: number }>;
+  color: string;
+  chartId: string;
+}) {
+  const gradId = `grad-${chartId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
   return (
     <ResponsiveContainer width="100%" height={200}>
       <AreaChart data={data}>
         <defs>
-          <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity={0.3} />
             <stop offset="100%" stopColor={color} stopOpacity={0} />
           </linearGradient>
@@ -167,7 +186,7 @@ function PredictionChart({ data, color }: { data: Array<{ date: string; value: n
         <XAxis dataKey="date" tick={{ fill: "#555", fontSize: 10 }} axisLine={{ stroke: "#333" }} />
         <YAxis tick={{ fill: "#555", fontSize: 10 }} axisLine={{ stroke: "#333" }} />
         <Tooltip contentStyle={{ backgroundColor: "#111", border: "1px solid #333", borderRadius: "4px" }} labelStyle={{ color: "#888" }} />
-        <Area type="monotone" dataKey="value" stroke={color} fill={`url(#grad-${color})`} strokeWidth={1.5} />
+        <Area type="monotone" dataKey="value" stroke={color} fill={`url(#${gradId})`} strokeWidth={1.5} />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -182,10 +201,13 @@ function CandlestickChart({ data }: { data: Array<{ date: string; open: number; 
         <YAxis tick={{ fill: "#555", fontSize: 10 }} axisLine={{ stroke: "#333" }} domain={["auto", "auto"]} />
         <Tooltip contentStyle={{ backgroundColor: "#111", border: "1px solid #333", borderRadius: "4px" }} labelStyle={{ color: "#888" }} formatter={(value: number) => [`$${value.toFixed(2)}`, ""]} />
         <Bar dataKey="high" fill="transparent">
-          {data.map((_entry: unknown, index: number) => {
-            const entry = _entry as { close: number; open: number };
-            return <Cell key={index} fill={entry.close >= entry.open ? "#fff" : "#666"} fillOpacity={0.8} />;
-          })}
+          {data.map((row, index) => (
+            <Cell
+              key={`${row.date}-${index}`}
+              fill={row.close >= row.open ? "#fff" : "#666"}
+              fillOpacity={0.8}
+            />
+          ))}
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -300,7 +322,26 @@ export default function Home() {
     return data;
   }, []);
 
-  const chartData = generateOhlcData(30);
+  const chartData = useMemo(
+    () => generateOhlcData(30),
+    [generateOhlcData],
+  );
+
+  const predictionPanels = useMemo(() => {
+    const items = [
+      { label: "Energy Sector (XLE)", symbol: "XLE", dir: "up" as const, basePrice: 96 },
+      { label: "Oil Fund (USO)", symbol: "USO", dir: "up" as const, basePrice: 77 },
+      { label: "Treasury (TLT)", symbol: "TLT", dir: "down" as const, basePrice: 92 },
+      { label: "Bitcoin (BTC)", symbol: "BTC", dir: "neutral" as const, basePrice: 67500 },
+    ];
+    return items.map((item) => ({
+      ...item,
+      chartData: generatePredictionData(item.basePrice, item.dir, 30),
+      confidencePct: (stable01(`conf-${item.symbol}`) * 10 + 55).toFixed(0),
+      chartColor:
+        item.dir === "up" ? "#fff" : item.dir === "down" ? "#666" : "#888",
+    }));
+  }, [generatePredictionData]);
 
   return (
     <div className="min-h-screen bg-[#050505] text-white">
@@ -556,12 +597,7 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { label: "Energy Sector (XLE)", symbol: "XLE", dir: "up" as const, basePrice: 96 },
-                { label: "Oil Fund (USO)", symbol: "USO", dir: "up" as const, basePrice: 77 },
-                { label: "Treasury (TLT)", symbol: "TLT", dir: "down" as const, basePrice: 92 },
-                { label: "Bitcoin (BTC)", symbol: "BTC", dir: "neutral" as const, basePrice: 67500 },
-              ].map((item) => (
+              {predictionPanels.map((item) => (
                 <div key={item.symbol} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-neutral-400">{item.label}</span>
@@ -570,11 +606,11 @@ export default function Home() {
                       {item.dir === "down" && <ArrowDownRight className="w-3 h-3 text-neutral-500" />}
                       {item.dir === "neutral" && <Minus className="w-3 h-3 text-neutral-600" />}
                       <span className="text-xs font-mono text-neutral-500">
-                        {(Math.random() * 10 + 55).toFixed(0)}% conf
+                        {item.confidencePct}% conf
                       </span>
                     </div>
                   </div>
-                  <PredictionChart data={generatePredictionData(item.basePrice, item.dir, 30)} color={item.dir === "up" ? "#fff" : item.dir === "down" ? "#666" : "#888"} />
+                  <PredictionChart chartId={item.symbol} data={item.chartData} color={item.chartColor} />
                 </div>
               ))}
             </div>
@@ -619,8 +655,8 @@ export default function Home() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vessels?.map((v: VesselItem, i: number) => (
-                    <TableRow key={i} className="border-neutral-800 hover:bg-neutral-900">
+                  {vessels?.map((v: VesselItem) => (
+                    <TableRow key={v.callsign || v.name} className="border-neutral-800 hover:bg-neutral-900">
                       <TableCell className="py-2">
                         <div className="flex items-center gap-2">
                           {v.type === "oil_tanker" && <Fuel className="w-3.5 h-3.5 text-neutral-500" />}
